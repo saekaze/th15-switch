@@ -1,0 +1,159 @@
+diff -ruN '--exclude=third_party' a/game/AnmInterpreter.cpp b/game/AnmInterpreter.cpp
+--- a/game/AnmInterpreter.cpp
++++ b/game/AnmInterpreter.cpp
+@@ -10,7 +10,7 @@
+ }
+ float float_math(float a,float b,u32 operation){switch(operation){case 0:return b;case 1:return float(a+b);case 2:return float(a-b);case 3:return float(a*b);case 4:return float(a/b);default:return float(std::fmod(double(a),double(b)));}}
+ }
+-bool AnmVm::bind(AnmScript& data){const i32 layer=visual.layer;const Vec3 translation=visual.translation;script=&data.bytes;resource=nullptr;source_script=-1;sprite=nullptr;sprite_resource=nullptr;sprite_source=nullptr;rotation_parent=nullptr;creation_parent=nullptr;slowdown=0;variables={};visual={};visual.layer=layer;visual.translation=translation;visual.sprite_matrix.identity();interpolators={};timer={};timer.set(0);age={};age.set(0);saved_timer={0,0,0,0,0};saved_offset=0;geometry.clear();instruction_offset=0;visible=false;pending_interrupt=0;error.clear();return script->size()>=8;}
++bool AnmVm::bind(AnmScript& data){const i32 layer=visual.layer;const Vec3 translation=visual.translation;script=&data.bytes;resource=nullptr;source_script=-1;sprite=nullptr;sprite_resource=nullptr;sprite_source=nullptr;rotation_parent=nullptr;creation_parent=nullptr;slowdown=0;variables={};visual=AnmVisualState{};visual.layer=layer;visual.translation=translation;visual.sprite_matrix.identity();interpolators={};timer={};timer.set(0);age={};age.set(0);saved_timer={0,0,0,0,0};saved_offset=0;geometry.clear();instruction_offset=0;visible=false;pending_interrupt=0;error.clear();return script->size()>=8;}
+ bool AnmVm::bind(AnmResource& data,u32 index){if(index>=data.scripts.size()||!bind(data.scripts[index]))return false;resource=&data;source_script=i32(index);return true;}
+ bool AnmVm::select_sprite(i32 index)noexcept{
+     AnmResource* source=resource;if(index<0){source=environment?environment->fallback_sprite_resource:nullptr;index=258;}
+diff -ruN '--exclude=third_party' a/portable/sdl/Renderer.cpp b/portable/sdl/Renderer.cpp
+--- a/portable/sdl/Renderer.cpp
++++ b/portable/sdl/Renderer.cpp
+@@ -1,17 +1,20 @@
+ #include "Renderer.hpp"
+ #include "Shaders.hpp"
+ #include "ResampleShader.hpp"
+-#include <emscripten.h>
+ #include <algorithm>
+ #include <cmath>
+ #include <cstring>
+ #include <cstdio>
+ #include <cstdlib>
+ 
+-EM_JS(int, touhou_clip_control, (), {
+-  const e=GL.currentContext.GLctx.getExtension('EXT_clip_control');
+-  if(e)e.clipControlEXT(e.LOWER_LEFT_EXT,e.ZERO_TO_ONE_EXT);return !!e;
+-});
++// Switch port: EXT_clip_control through the GLES extension loader instead
++// of WebGL. Absent -> the shader keeps the [-1,1] depth remap.
++static int touhou_clip_control(){
++ const char* list=reinterpret_cast<const char*>(glGetString(GL_EXTENSIONS));
++ if(!list||!std::strstr(list,"GL_EXT_clip_control"))return 0;
++ using ClipControl=void(*)(GLenum,GLenum);auto clip=reinterpret_cast<ClipControl>(SDL_GL_GetProcAddress("glClipControlEXT"));
++ if(!clip)return 0;clip(0x8CA1/*LOWER_LEFT*/,0x935F/*ZERO_TO_ONE*/);return glGetError()==GL_NO_ERROR;
++}
+ namespace touhou::sdl {
+ namespace {
+ Renderer* active=nullptr;
+@@ -39,12 +42,19 @@
+ State::State(){for(auto& m:matrix)m=identity;}
+ Renderer::Renderer(int v,Resolve r,void* p):version(v),resolve(r),owner(p){}
+ bool Renderer::initialize(){
+- if(!SDL_Init(SDL_INIT_VIDEO|SDL_INIT_EVENTS)){failure=SDL_GetError();return false;}
++ // Switch port: SDL2 window. Horizon gives one 1280x720 (handheld/docked)
++ // surface; desktop test builds open a resizable 960x720 window.
++ if(SDL_InitSubSystem(SDL_INIT_VIDEO|SDL_INIT_EVENTS)!=0){failure=SDL_GetError();return false;}
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK,SDL_GL_CONTEXT_PROFILE_ES);SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION,3);SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION,0);
++ SDL_GL_SetAttribute(SDL_GL_RED_SIZE,8);SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE,8);SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE,8);
+  SDL_GL_SetAttribute(SDL_GL_ALPHA_SIZE,0);SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE,0);SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE,0);SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER,1);
+- window=SDL_CreateWindow(version==8?"Touhou 08":"Touhou 10",640,480,SDL_WINDOW_OPENGL);if(!window){failure=SDL_GetError();return false;}
+- SDL_SetWindowSize(window,640,480);
+- context=SDL_GL_CreateContext(window);if(!context){failure=SDL_GetError();return false;}SDL_GL_SetSwapInterval(1);drawState=DrawStateCache{};
++#ifdef __SWITCH__
++ window=SDL_CreateWindow(title?title:"Touhou",SDL_WINDOWPOS_UNDEFINED,SDL_WINDOWPOS_UNDEFINED,1280,720,SDL_WINDOW_OPENGL|SDL_WINDOW_FULLSCREEN);
++#else
++ window=SDL_CreateWindow(title?title:"Touhou",SDL_WINDOWPOS_CENTERED,SDL_WINDOWPOS_CENTERED,960,720,SDL_WINDOW_OPENGL|SDL_WINDOW_RESIZABLE);
++#endif
++ if(!window){failure=SDL_GetError();return false;}
++ context=SDL_GL_CreateContext(window);if(!context){failure=SDL_GetError();return false;}SDL_GL_MakeCurrent(window,context);SDL_GL_SetSwapInterval(1);drawState=DrawStateCache{};
+  std::string source=vertexSource;if(version==10&&touhou_clip_control()){replace(source,"position.z*2.0-1.0","position.z");replace(source,"gl_Position.z=gl_Position.z*2.0-gl_Position.w;","");}
+  vertex=shader(GL_VERTEX_SHADER,source);glGenBuffers(1,&vertices.id);glGenBuffers(1,&indices.id);glGenBuffers(1,&instances.id);
+  glActiveTexture(GL_TEXTURE0);buildingGeneric=true;select(State{});generic=*program;programs.clear();buildingGeneric=false;
+@@ -62,7 +72,7 @@
+  glGenVertexArrays(1,&resampleVao);glGenTextures(1,&weightTexture);
+  warming=false;set_current(this);return true;
+ }
+-Renderer::~Renderer(){discard();if(context){SDL_GL_MakeCurrent(window,context);for(auto& [id,g]:surfaces){glDeleteTextures(1,&g.texture);glDeleteFramebuffers(1,&g.framebuffer);}for(auto& [id,d]:depths)glDeleteRenderbuffers(1,&d.buffer);for(auto& [k,p]:programs)glDeleteProgram(p.id);glDeleteProgram(resampleProgram);glDeleteVertexArrays(1,&resampleVao);glDeleteTextures(1,&weightTexture);glDeleteProgram(generic.id);for(auto& entry:layouts)glDeleteVertexArrays(1,&entry.second);glDeleteShader(vertex);glDeleteBuffers(1,&vertices.id);glDeleteBuffers(1,&indices.id);glDeleteBuffers(1,&instances.id);SDL_GL_DestroyContext(context);}if(window)SDL_DestroyWindow(window);if(active==this)active=nullptr;SDL_Quit();}
++Renderer::~Renderer(){discard();if(context){SDL_GL_MakeCurrent(window,context);for(auto& [id,g]:surfaces){glDeleteTextures(1,&g.texture);glDeleteFramebuffers(1,&g.framebuffer);}for(auto& [id,d]:depths)glDeleteRenderbuffers(1,&d.buffer);for(auto& [k,p]:programs)glDeleteProgram(p.id);glDeleteProgram(resampleProgram);glDeleteVertexArrays(1,&resampleVao);glDeleteTextures(1,&weightTexture);glDeleteProgram(generic.id);for(auto& entry:layouts)glDeleteVertexArrays(1,&entry.second);glDeleteShader(vertex);glDeleteBuffers(1,&vertices.id);glDeleteBuffers(1,&indices.id);glDeleteBuffers(1,&instances.id);SDL_GL_DeleteContext(context);}if(window)SDL_DestroyWindow(window);if(active==this)active=nullptr;}
+ void Renderer::bind_texture(GLuint id){if(boundTexture!=id){glBindTexture(GL_TEXTURE_2D,id);boundTexture=id;++stats.textureBinds;}}
+ void Renderer::bind_framebuffer(GLenum target,GLuint id){
+  const bool read=target!=GL_DRAW_FRAMEBUFFER,draw=target!=GL_READ_FRAMEBUFFER;
+@@ -259,15 +269,19 @@
+ }
+ void Renderer::release(u32 id){flush();auto d=depths.find(id);if(d!=depths.end()){glDeleteRenderbuffers(1,&d->second.buffer);depths.erase(d);}auto it=surfaces.find(id);if(it==surfaces.end())return;glDeleteTextures(1,&it->second.texture);glDeleteFramebuffers(1,&it->second.framebuffer);surfaces.erase(it);boundTexture=readFramebuffer=drawFramebuffer=~0u;}
+ void Renderer::present(u32 id){flush();pending=id;stats.frames++;if(!defer)commit();}
+-bool Renderer::commit(){if(!pending)return false;auto s=resolve(owner,pending);auto& g=surface(pending);pending=0;bind_framebuffer(GL_READ_FRAMEBUFFER,g.framebuffer);bind_framebuffer(GL_DRAW_FRAMEBUFFER,0);glDisable(GL_SCISSOR_TEST);int width=640,height=480;SDL_GetWindowSizeInPixels(window,&width,&height);glBlitFramebuffer(0,0,s.width*s.renderScale,s.height*s.renderScale,0,height,width,0,GL_COLOR_BUFFER_BIT,GL_NEAREST);SDL_GL_SwapWindow(window);stats.presentations++;return true;}
++bool Renderer::commit(){
++ if(!pending)return false;auto s=resolve(owner,pending);auto& g=surface(pending);pending=0;
++ // Switch port: aspect-correct upscale of the 4:3 frame, centred with pure
++ // black (#000000) bars - OLED friendly, same as the other ports.
++ int dw=0,dh=0;SDL_GL_GetDrawableSize(window,&dw,&dh);if(dw<=0||dh<=0){dw=640;dh=480;}
++ int pw=dw,ph=dw*3/4;if(ph>dh){ph=dh;pw=dh*4/3;}const int px=(dw-pw)/2,py=(dh-ph)/2;
++ picture={px,py,pw,ph,dw,dh};
++ bind_framebuffer(GL_DRAW_FRAMEBUFFER,0);glDisable(GL_SCISSOR_TEST);glColorMask(true,true,true,true);drawState.pipeline.colorMask=15;
++ glViewport(0,0,dw,dh);drawState.has_viewport=false;glClearColor(0,0,0,1);glClear(GL_COLOR_BUFFER_BIT);
++ bind_framebuffer(GL_READ_FRAMEBUFFER,g.framebuffer);
++ const u32 sw=s.width*s.renderScale,sh=s.height*s.renderScale;
++ glBlitFramebuffer(0,0,sw,sh,px,py+ph,px+pw,py,GL_COLOR_BUFFER_BIT,pw==int(sw)&&ph==int(sh)?GL_NEAREST:GL_LINEAR);
++ SDL_GL_SwapWindow(window);stats.presentations++;return true;
+ }
+-extern "C" {
+-const touhou::sdl::Statistics* sdl_stats(){static touhou::sdl::Statistics zero{};return touhou::sdl::current()?&touhou::sdl::current()->stats:&zero;}
+-void sdl_defer(int enabled){if(auto* r=touhou::sdl::current())r->defer=enabled;}
+-int sdl_commit(){return touhou::sdl::current()&&touhou::sdl::current()->commit();}
+-const char* sdl_error(){return touhou::sdl::current()?touhou::sdl::current()->error():SDL_GetError();}
+-int sdl_version(){return SDL_GetVersion();}
+-double sdl_ticks(){return double(SDL_GetTicksNS())/1000000.0;}
+-__attribute__((export_name("sdl_canvas"))) void sdl_canvas(const char* selector){SDL_SetHint(SDL_HINT_EMSCRIPTEN_CANVAS_SELECTOR,selector);}
+-__attribute__((export_name("sdl_pump"))) void sdl_pump(){SDL_Event event;while(SDL_PollEvent(&event)){};}
++
+ }
+diff -ruN '--exclude=third_party' a/portable/sdl/Renderer.hpp b/portable/sdl/Renderer.hpp
+--- a/portable/sdl/Renderer.hpp
++++ b/portable/sdl/Renderer.hpp
+@@ -1,5 +1,5 @@
+ #pragma once
+-#include <SDL3/SDL.h>
++#include <SDL.h>
+ #include "GraphicsState.hpp"
+ #include <GLES3/gl3.h>
+ #include <array>
+@@ -27,6 +27,7 @@
+     using Resolve=Surface(*)(void*,u32);
+     Statistics stats{};State state{};bool defer=false;
+     Renderer(int version,Resolve,void*);~Renderer();
++    const char* title=nullptr; // Switch port: window title
+     bool initialize();void flush();void discard();bool commit();
+     PipelineState& pipeline() override { return state.pipeline; }
+     void transform(MatrixKind,const void*);void viewport(const Viewport&);
+@@ -37,6 +38,10 @@
+     bool resample(u32,const i32*,u32,const i32*,const float*,u32,u32);
+     void changed(u32,u32,const std::array<u32,4>&);void read(u32);void release(u32);void present(u32);void prepare(u32);
+     const char* error()const{return failure.c_str();}
++    // Switch port: 4:3 picture rectangle inside the drawable (pillarboxed),
++    // updated on every present. Used to map touch input back to 640x480.
++    struct Picture {int x=0,y=0,width=640,height=480,drawable_width=640,drawable_height=480;} picture{};
++    SDL_Window* sdl_window()const{return window;}
+     int version;Resolve resolve;void* owner;
+ private:
+     struct GPU {GLuint texture=0,framebuffer=0;u32 version=~0u,dirtyBase=~0u;std::array<u32,4> dirty{};bool rendered=false;GLuint attached=~0u;std::array<GLint,4> sampler{};};
+@@ -61,11 +66,3 @@
+ Renderer* current();void set_current(Renderer*);
+ }
+ 
+-extern "C" {
+-__attribute__((export_name("sdl_stats"))) const touhou::sdl::Statistics* sdl_stats();
+-__attribute__((export_name("sdl_defer"))) void sdl_defer(int);
+-__attribute__((export_name("sdl_commit"))) int sdl_commit();
+-__attribute__((export_name("sdl_error"))) const char* sdl_error();
+-__attribute__((export_name("sdl_version"))) int sdl_version();
+-__attribute__((export_name("sdl_ticks"))) double sdl_ticks();
+-}
+diff -ruN '--exclude=third_party' a/portable/sdl/ResampleShader.hpp b/portable/sdl/ResampleShader.hpp
+--- a/portable/sdl/ResampleShader.hpp
++++ b/portable/sdl/ResampleShader.hpp
+@@ -75,8 +75,8 @@
+   }
+  }else{value=originalPixel(sourceRect.xy+at*sourceRect.zw/destinationRect.zw);}
+  uvec4 mask=uvec4(destinationMask);
+- uvec4 packed=uvec4(channel(value.r,mask.r),channel(value.g,mask.g),channel(value.b,mask.b),channel(value.a,mask.a));
+- outputColor=mix(vec4(1),vec4(packed)/max(vec4(mask),vec4(1)),greaterThan(mask,uvec4(0)));
++ uvec4 quantized=uvec4(channel(value.r,mask.r),channel(value.g,mask.g),channel(value.b,mask.b),channel(value.a,mask.a));
++ outputColor=mix(vec4(1),vec4(quantized)/max(vec4(mask),vec4(1)),greaterThan(mask,uvec4(0)));
+ }
+ )GLSL";
+ }

@@ -1,0 +1,17 @@
+TH15 Switch port - third-party notices
+
+Original game, characters, graphics, dialogue, music and effects: Team Shanghai Alice / ZUN.
+Game data, music and the MS Gothic font are separate original/proprietary assets;
+none are included.
+
+Game code (game/, src/ host, portable/): YomotsuHisami/th15, the TH15
+reimplementation by SteinsGateON - MIT (LICENSE-upstream-MIT.txt).
+Bundled headers keep their own licences:
+- miniaudio: MIT or public domain (portable/sdl/third_party/miniaudio.LICENSE).
+- stb_image, stb_vorbis: MIT or public domain (file headers).
+
+Linked on the Switch (devkitPro portlibs), not included in this repository:
+- SDL2: zlib license.
+- FreeType: FreeType License. Portions copyright The FreeType Project.
+- HarfBuzz (MIT), libpng (libpng license), zlib (zlib), bzip2 (BSD-style),
+  Mesa (MIT), libnx (ISC).
