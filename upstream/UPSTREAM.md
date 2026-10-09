@@ -18,9 +18,14 @@ Switch port files (new): `src/main.cpp` (replaces `BrowserRuntime.cpp`),
 
 Changes to upstream files:
 
-* `game/` — one line, in [`switch-port.patch`](switch-port.patch): GCC rejects
-  `visual={}` on `AnmVisualState`, so it is `visual=AnmVisualState{}`. The game
-  code is otherwise untouched; it is already 64-bit clean.
+* `game/` — in [`switch-port.patch`](switch-port.patch): GCC rejects
+  `visual={}` on `AnmVisualState`, so it is `visual=AnmVisualState{}`.
+  `BattleCheckpoint::build_file` splits the section building out of
+  `write_file`, so the host can LZSS-encode and write Pointdevice checkpoints
+  on a worker thread (r2; a spell end froze the game otherwise), and
+  `AnmCheckpoint` keeps its newest-first order in a deque and looks entries up
+  by handle directly (both were quadratic in the number of snapshotted
+  animations). The game code is otherwise untouched; it is already 64-bit clean.
 * `portable/sdl/` — in [`switch-port.patch`](switch-port.patch): SDL3/WebGL2 →
   SDL2/GLES 3 (Switch Mesa) window and context, `EXT_clip_control` through the
   GLES loader, aspect-correct pillarboxed present, `packed` (a reserved GLSL ES
