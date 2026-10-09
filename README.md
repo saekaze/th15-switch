@@ -13,7 +13,11 @@ Companion to the [Touhou 6](https://github.com/saekaze/th06-switch), [Touhou 7](
 
 ---
 
-## 🆕 What's New — first release (1.00b-r1)
+## 🆕 What's New — 1.00b-r2
+
+* 🧊 **No more freeze when a spell card ends.** TH15 saves a checkpoint file at every chapter change; the port used to compress and write it on the game thread, which froze the game right as the bullets disappeared. It now runs in the background on another CPU core, like in the original game.
+
+## First release (1.00b-r1)
 
 * 🌙 The full game: Reimu, Marisa, Sanae and Reisen, Legacy and Pointdevice modes, every difficulty, all 6 stages and Extra, chapter checkpoints, endings, music room, manual and replays.
 * 🎮 Remappable controls through **Option → Key Config** (the D-Pad and sticks only move).

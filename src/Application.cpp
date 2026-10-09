@@ -66,7 +66,7 @@ bool ApplicationState::initialize(bool device){
  camera.direction={0,0,1};camera.up={0,1,0};camera.fov=0.785398185f;
  initialized=true;return begin_title(0);
 }
-ApplicationState::~ApplicationState(){title.reset();ending.reset();release_run();for(auto& c:animation_updates)scheduler.remove(c);fades.clear();display.reset();scene_effects.reset();animations.resource_release=nullptr;}
+ApplicationState::~ApplicationState(){files.wait_checkpoint(); /* the worker writes checkpoint_bytes, destroyed before files */title.reset();ending.reset();release_run();for(auto& c:animation_updates)scheduler.remove(c);fades.clear();display.reset();scene_effects.reset();animations.resource_release=nullptr;}
 bool ApplicationState::save_settings(){config.bytes[0x22]=u8(volumes.music_volume);config.bytes[0x23]=u8(volumes.sound_volume);config.bytes[0x24]=volumes.controller_option;std::memcpy(config.bytes.data()+4,controller.values.data(),20);return files.save(records,config)||fail(files.error);}
 void ApplicationState::release_run(){
  const bool had_run=run!=nullptr;close_options();motion.clear();if(display)display->detach();pause.reset();flow.reset();initialization.reset();session.reset();

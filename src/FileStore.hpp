@@ -5,12 +5,16 @@
 #include "../game/ReplayRecording.hpp"
 #include "../game/CheckpointFile.hpp"
 #include "Platform.hpp"
+#include "BackgroundJob.hpp"
+#include <functional>
 namespace th15::sdl {
 // Files live in the player's mounted save directory. Native codecs stay in
 // the game layer; the browser launcher owns IDBFS synchronization and imports.
 class FileStore {
- std::string directory;std::vector<u8> saved_score,saved_config;
+ std::string directory;std::vector<u8> saved_score,saved_config;BackgroundJob checkpoint_job;
  bool read(const std::string&,std::vector<u8>&,u32 limit,bool& present);bool write(const std::string&,const u8*,u32);
+ static bool write_file(const std::string&,const u8*,u32,std::string& error);
+ static bool checkpoint_valid(i32 character,i32 difficulty,const std::vector<u8>&,std::string& error);
  static bool filename(const std::string&)noexcept;
 public:
  std::string error;explicit FileStore(std::string root=host::paths().save) /* Switch port: SD card save folder */:directory(std::move(root)){}
@@ -21,5 +25,11 @@ public:
  bool checkpoint(i32 character,i32 difficulty,std::vector<u8>&,bool& present);
  bool checkpoint_header(i32 character,i32 difficulty,CheckpointHeader&,bool& present);
  bool save_checkpoint(i32 character,i32 difficulty,const std::vector<u8>&);
+ // Switch port: encode(bytes) and the file write run on a background thread;
+ // bytes must not be touched until wait_checkpoint() (every checkpoint read,
+ // write or removal waits first). Failures are logged, not fatal.
+ void save_checkpoint_async(i32 character,i32 difficulty,std::vector<u8>& bytes,std::function<bool(std::vector<u8>&,std::string&)> encode);
+ void wait_checkpoint(){checkpoint_job.wait();}
+ ~FileStore(){wait_checkpoint();}
 };
 }

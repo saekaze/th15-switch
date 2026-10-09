@@ -52,9 +52,17 @@ bool ApplicationState::begin_restart_effect(){if(!assets())return fail("Chapter 
 bool ApplicationState::begin_restart_overlay(){return restart_overlay(250);}
 bool ApplicationState::checkpoint_file(bool restoring){
  if(!scene())return fail("Pointdevice checkpoint has no scene");auto& saved=scene()->checkpoint;
- if(restoring){const auto header=saved.file_header(i64(std::time(nullptr)),0);if(checkpoint_bytes.empty()||!CheckpointFile::update_header(checkpoint_bytes,header))return fail("Retry metadata has no captured checkpoint file");}
- else if(!saved.write_file(checkpoint_bytes,i64(std::time(nullptr)),0))return fail(saved.error);
- return files.save_checkpoint(progress.character,progress.difficulty,checkpoint_bytes)||fail(files.error);
+ // Switch port: every chapter change (spell end) saves the checkpoint file.
+ // LZSS-compressing it took far longer than a frame, so the encode and the
+ // SD write run on a worker thread like the original's checkpoint worker;
+ // checkpoint_bytes belongs to that worker until wait_checkpoint().
+ files.wait_checkpoint();
+ if(restoring){const auto header=saved.file_header(i64(std::time(nullptr)),0);if(checkpoint_bytes.empty()||!CheckpointFile::update_header(checkpoint_bytes,header))return fail("Retry metadata has no captured checkpoint file");
+  files.save_checkpoint_async(progress.character,progress.difficulty,checkpoint_bytes,nullptr);return true;}
+ const double begin=host::seconds();auto file=std::make_shared<CheckpointFile>();if(!saved.build_file(*file,i64(std::time(nullptr)),0))return fail(saved.error);
+ {size_t bytes=0;for(const auto& part:file->sections)bytes+=part.size();host::log("checkpoint sections built on the game thread: %zu bytes, %.1f ms",bytes,(host::seconds()-begin)*1000);}
+ files.save_checkpoint_async(progress.character,progress.difficulty,checkpoint_bytes,[file](std::vector<u8>& out,std::string& failure){if(file->encode(out))return true;failure=file->error;return false;});
+ return true;
 }
 bool ApplicationState::ending_fade(){return screen_fade(200,20,81,true,true);}
 bool ApplicationState::finish_replay(){if(progress.replay)return pause&&pause->open(PauseEntrance::RetryPause)||fail(pause?pause->error:"Replay completion menu unavailable");return prepare_live_replay(true);}

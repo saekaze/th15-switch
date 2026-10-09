@@ -2,12 +2,16 @@
 //   thbgm stream - PCM offsets, loop points, two tracks sharing one FILE
 //   font baker   - T15G v3 tables accepted by the upstream GlyphAtlas and
 //                  drawn by the upstream TextRaster (needs a CJK font)
+//   checkpoint   - Pointdevice checkpoints encode + write on a background
+//                  thread and read back intact (the read waits for it)
 //   renderer     - the SDL2/GLES3 port of the shared renderer draws, reads
 //                  back and presents (needs a display, e.g. Xvfb)
 #include "../game/Types.hpp"
 #include "../game/TextRaster.hpp"
 #include "../src/BgmStream.hpp"
 #include "../src/FontBaker.hpp"
+#include "../src/FileStore.hpp"
+#include "../game/CheckpointFile.hpp"
 #include "../src/Platform.hpp"
 #include "../portable/sdl/Renderer.hpp"
 #include <SDL.h>
@@ -110,10 +114,27 @@ static bool test_renderer(){
     return true;
 }
 
+static void test_checkpoint(const std::string& dir){
+    std::puts("checkpoint (background save)");
+    host::make_directory(dir+"/save");host::make_directory(dir+"/save/autosave");
+    sdl::FileStore files(dir+"/save");
+    auto file=std::make_shared<CheckpointFile>();
+    file->header=CheckpointHeader::create(1700000000,2,3,4,5,{},0);
+    for(u32 i=0;i<file->sections.size();i++){const u32 n=i==0?0x1cc:i==7?0x514:i*40000u;file->sections[i].resize(n);for(u32 k=0;k<n;k++)file->sections[i][k]=u8((k*7+i)%13==0?k:i);}
+    const auto expected=file->sections;
+    std::vector<u8> bytes;const double begin=host::seconds();
+    files.save_checkpoint_async(2,3,bytes,[file](std::vector<u8>& out,std::string& failure){if(file->encode(out))return true;failure=file->error;return false;});
+    const double queued=host::seconds()-begin;
+    std::vector<u8> read;bool present=false;CHECK(files.checkpoint(2,3,read,present));CHECK(present);
+    std::printf("  queued in %.2f ms, written and read back in %.0f ms (%zu bytes)\n",queued*1000,(host::seconds()-begin)*1000,read.size());
+    CHECK(queued<0.01);CHECK(read==bytes);
+    CheckpointFile back;CHECK(back.open(read.data(),u32(read.size())));CHECK(back.sections==expected);CHECK(back.header.character()==2&&back.header.difficulty()==3);
+}
+
 int main(){
     const std::string dir=std::string(std::getenv("TMPDIR")?std::getenv("TMPDIR"):"/tmp")+"/th15-switch-test";
     host::make_directory(dir);
-    test_bgm_stream(dir);test_font_baker(dir);
+    test_bgm_stream(dir);test_font_baker(dir);test_checkpoint(dir);
     if(SDL_Init(SDL_INIT_VIDEO)==0){test_renderer();SDL_Quit();}else std::printf("renderer skipped: %s\n",SDL_GetError());
     std::printf(failures?"FAILED (%d)\n":"all host tests passed\n",failures);
     return failures?1:0;

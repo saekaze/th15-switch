@@ -8,16 +8,19 @@ AnmCheckpoint::Entry* AnmCheckpoint::capture_tree(const AnmVm& source,const AnmR
     if(parent){parent->children.push_back(out);out->vm.creation_parent=&parent->vm;out->vm.rotation_parent=parent->vm.rotation_parent;}
     entries.push_back(std::move(entry));
     if(out->vm.geometry.gather)for(auto& handle:out->vm.geometry.gather->handles)handle=capture(registry.find(handle),registry);
-    order.insert(order.begin(),out);
+    order.push_front(out);
     for(auto* child:registry.children(source))capture_tree(*child,registry,out);
     return out;
 }
 u32 AnmCheckpoint::capture(const AnmVm* source,const AnmRegistry& registry){return source?capture_tree(*source,registry,nullptr)->handle:0;}
-const AnmVm* AnmCheckpoint::find(u32 handle)const noexcept{
-    if(!handle)return nullptr;const u32 slot=handle&0x1fff;if(slot<0x1fff)return slot<entries.size()?&entries[slot]->vm:nullptr;
-    for(const auto* entry:order)if(entry->handle==handle)return &entry->vm;return nullptr;
+// Switch port: handle -> entry directly (same lookup as find()) instead of
+// resolving the VM and then scanning every entry for it.
+const AnmCheckpoint::Entry* AnmCheckpoint::entry(u32 handle)const noexcept{
+    if(!handle)return nullptr;const u32 slot=handle&0x1fff;if(slot<0x1fff)return slot<entries.size()?entries[slot].get():nullptr;
+    for(const auto* e:order)if(e->handle==handle)return e;return nullptr;
 }
-u32 AnmCheckpoint::child_handle(u32 handle,u32 index)const noexcept{const auto* vm=find(handle);if(!vm)return 0;for(const auto& entry:entries)if(&entry->vm==vm)return index<entry->children.size()?entry->children[index]->handle:0;return 0;}
+const AnmVm* AnmCheckpoint::find(u32 handle)const noexcept{const auto* e=entry(handle);return e?&e->vm:nullptr;}
+u32 AnmCheckpoint::child_handle(u32 handle,u32 index)const noexcept{const auto* e=entry(handle);if(!e)return 0;return index<e->children.size()?e->children[index]->handle:0;}
 u32 AnmCheckpoint::restore_tree(const Entry& source,AnmRegistry& registry,AnmVm* parent){
     auto* vm=registry.allocate();vm->copy_checkpoint(source.vm);vm->visual.render_flags&=~0x4000000u;
     if(vm->geometry.gather)for(auto& handle:vm->geometry.gather->handles){const u32 saved=handle;handle=restore(saved,registry);if(saved&&!handle){registry.discard(*vm);return 0;}}
@@ -27,14 +30,14 @@ u32 AnmCheckpoint::restore_tree(const Entry& source,AnmRegistry& registry,AnmVm*
     for(const auto* child:source.children)if(!restore_tree(*child,registry,vm)){registry.destroy_tree(*vm);return 0;}
     return handle;
 }
-u32 AnmCheckpoint::restore(u32 handle,AnmRegistry& registry){if(!handle)return 0;const auto* vm=find(handle);if(!vm){error="Checkpoint animation unavailable";return 0;}for(const auto& entry:entries)if(&entry->vm==vm)return restore_tree(*entry,registry,nullptr);return 0;}
+u32 AnmCheckpoint::restore(u32 handle,AnmRegistry& registry){if(!handle)return 0;const auto* e=entry(handle);if(!e){error="Checkpoint animation unavailable";return 0;}return restore_tree(*e,registry,nullptr);}
 namespace {u32 file_word(const u8* p,u32 at){u32 v;std::memcpy(&v,p+at,4);return v;}void file_put(u8* p,u32 at,u32 v){std::memcpy(p+at,&v,4);}}
 bool AnmCheckpoint::write_entry(const Entry& e,const AnmManager& manager,std::vector<u8>& output,bool sibling,u32 depth){
     if(depth>64){error="Checkpoint animation tree nesting exceeds limit";return false;}
     AnmFile codec;AnmFile::Block block;if(!codec.write(e.vm,manager,block)){error=codec.error;return false;}
     file_put(block.data(),0x544,e.handle);file_put(block.data(),0x588,0);file_put(block.data(),0x598,0);
     const size_t at=output.size();output.insert(output.end(),block.begin(),block.end());
-    const auto particle=[&](u32 handle,std::vector<u8>& out)->bool{const auto* v=find(handle);if(!v)return false;for(const auto& entry:entries)if(&entry->vm==v)return write_entry(*entry,manager,out,false,depth+1);return false;};
+    const auto particle=[&](u32 handle,std::vector<u8>& out)->bool{const auto* p=entry(handle);return p&&write_entry(*p,manager,out,false,depth+1);};
     if(!codec.write_geometry(e.vm,manager,output,particle)){if(error.empty())error=codec.error;output.resize(at);return false;}
     // 4899f0 advances its serialized parent cursor to each child after
     // attaching it. Preserve that file topology, including an existing child
@@ -50,8 +53,8 @@ bool AnmCheckpoint::write_entry(const Entry& e,const AnmManager& manager,std::ve
     return true;
 }
 bool AnmCheckpoint::write_tree(u32 handle,const AnmManager& manager,std::vector<u8>& output){
-    error.clear();const auto* vm=find(handle);if(!vm){error="Checkpoint animation tree is unavailable";return false;}
-    for(const auto& entry:entries)if(&entry->vm==vm)return write_entry(*entry,manager,output,false,0);return false;
+    error.clear();const auto* e=entry(handle);if(!e){error="Checkpoint animation tree is unavailable";return false;}
+    return write_entry(*e,manager,output,false,0);
 }
 AnmCheckpoint::Entry* AnmCheckpoint::read_entry(const u8* bytes,u32 size,u32& consumed,AnmManager& manager,Entry* parent,u32 depth){
     consumed=0;if(depth>64||size<0x608||entries.size()>65536){error="Checkpoint animation tree is truncated or exceeds limits";return nullptr;}
@@ -64,7 +67,7 @@ AnmCheckpoint::Entry* AnmCheckpoint::read_entry(const u8* bytes,u32 size,u32& co
     entries.push_back(std::move(next));u32 geometry=0;
     const auto particle=[&](const u8* p,u32 n,u32& used)->u32{auto* value=read_entry(p,n,used,manager,nullptr,depth+1);return value?value->handle:0;};
     if(!codec.read_geometry(bytes,bytes+0x608,size-0x608,e->vm,manager,geometry,particle)){if(error.empty())error=codec.error;return nullptr;}
-    consumed=0x608+geometry;order.insert(order.begin(),e);
+    consumed=0x608+geometry;order.push_front(e);
     if(file_word(bytes,0x598)){
         bool more=true;while(more){if(size-consumed<0x608){error="Truncated checkpoint child animation";return nullptr;}
             const auto* child=bytes+consumed;more=file_word(child,0x588)!=0;u32 used=0;if(!read_entry(child,size-consumed,used,manager,e,depth+1))return nullptr;consumed+=used;

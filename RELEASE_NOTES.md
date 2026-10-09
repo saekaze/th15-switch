@@ -1,5 +1,14 @@
 <img width="256" height="256" alt="Touhou 15" src="https://raw.githubusercontent.com/saekaze/th15-switch/main/platform/switch/icon.jpg" />
 
+## Touhou 15 — 1.00b-r2
+
+* 🧊 **No more freeze when a spell card ends.** At every chapter change TH15 saves a checkpoint file; the port compressed and wrote it to the SD card on the game thread, which froze the game for a moment right as the bullets disappeared. It now happens in the background on another CPU core, like in the original game.
+* The checkpoint snapshot is also faster when many bullets were just cancelled.
+
+Update: replace `touhou15.nro` in `sd:/switch/touhou/touhou15/`. Saves, replays and `fontcache/` are kept.
+
+---
+
 ## Touhou 15 — 1.00b-r1 (first release)
 
 A native Nintendo Switch port of Touhou 15: Legacy of Lunatic Kingdom v1.00b, built on SteinsGateON's TH15 C++ reimplementation (published by YomotsuHisami) and compiled natively for ARM64.

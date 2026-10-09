@@ -1,12 +1,17 @@
 #pragma once
 #include "AnmRegistry.hpp"
+#include <deque>
 namespace th15 {
 class AnmManager;
 // The original checkpoints clone only animations owned by snapshotted game
 // objects, into a separate pool. They do not copy or rewind the live registry.
 class AnmCheckpoint {
     struct Entry {AnmVm vm;u32 handle=0;Entry* parent=nullptr;std::vector<Entry*> children;};
-    std::vector<std::unique_ptr<Entry>> entries;std::vector<Entry*> order;u32 generation=0;
+    // Switch port: order is newest-first and gains an entry per captured VM; a
+    // deque keeps that O(1) (a vector insert at begin() made a spell-end
+    // capture of thousands of cancel effects quadratic).
+    std::vector<std::unique_ptr<Entry>> entries;std::deque<Entry*> order;u32 generation=0;
+    const Entry* entry(u32 handle)const noexcept;
     Entry* capture_tree(const AnmVm&,const AnmRegistry&,Entry* parent);
     u32 restore_tree(const Entry&,AnmRegistry&,AnmVm* parent);
     bool write_entry(const Entry&,const AnmManager&,std::vector<u8>&,bool sibling,u32 depth);
