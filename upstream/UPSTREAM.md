@@ -16,8 +16,9 @@ Switch port files (new): `src/main.cpp` (replaces `BrowserRuntime.cpp`),
 `src/Platform.*`, `src/SdlCompat.hpp`, `src/BgmStream.*`, `src/FontBaker.*`,
 `src/MiniaudioConfig.hpp`, `src/BackgroundJob.hpp`, `src/LoadingScreen.*`,
 `scripts/`, `tests/`, `CMakeLists.txt`. `src/LoadingOverlay.*` and
-`src/LoadingQuad.hpp` come from the TH15 PSP port (shared with this port by
-its author; include paths adapted, UVs as `AnmRenderer::pack_quad` builds them).
+`src/LoadingQuad.hpp` come from シエル's TH15 PSP port
+(https://github.com/kan8223-dotcom/th10-psp-native), shared for this port
+(include paths adapted, UVs as `AnmRenderer::pack_quad` builds them).
 
 Changes to upstream files:
 

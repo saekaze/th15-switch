@@ -1,4 +1,5 @@
-// Switch port, from the TH15 PSP port (shared with us by its author): the
+// Switch port, from シエル's TH15 PSP port (shared for this port; see
+// https://github.com/kan8223-dotcom/th10-psp-native): the
 // original's loading animation (ascii.anm script 17 at 960,784, as the
 // ending's loading_overlay creates it: "NowLoading..." sliding in, 少女祈祷中
 // pulsing, a moon let go every 4 frames) for the start-up load, which has no

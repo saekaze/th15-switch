@@ -13,7 +13,11 @@ Companion to the [Touhou 6](https://github.com/saekaze/th06-switch), [Touhou 7](
 
 ---
 
-## 🆕 What's New — 1.00b-r2
+## 🆕 What's New — 1.00b-r3
+
+* 🌙 **The original loading screen.** Start-up now shows the original game's "東方Project / 15th Project Shrine Maiden" screen with the 少女祈祷中 / NowLoading... animation and its drifting moons, instead of a grey bar — also during the long first launch. It is drawn from your own `th15.dat`; no images ship with the port. Thanks to [シエル](https://github.com/kan8223-dotcom/th10-psp-native) for working out how the original builds it and sharing the code from their PSP port.
+
+## 1.00b-r2
 
 * 🧊 **No more freeze when a spell card ends.** TH15 saves a checkpoint file at every chapter change; the port used to compress and write it on the game thread, which froze the game right as the bullets disappeared. It now runs in the background on another CPU core, like in the original game.
 
@@ -28,6 +32,7 @@ Companion to the [Touhou 6](https://github.com/saekaze/th06-switch), [Touhou 7](
 
 ## ✨ Key Features
 
+* 🌙 **Original Loading Screen:** the start screen and 少女祈祷中 animation of the PC game, built from your `th15.dat` while the game loads.
 * ⬛ **OLED-Friendly Pillarboxing:** the original 640×480 picture is centred with pure black (`#000000`) bars and an aspect-correct upscale.
 * 🔊 **Full Audio:** sound effects plus BGM streamed straight out of your `thbgm.dat` (original 16-bit PCM and loop points — no conversion step).
 * 🎮 **Sane, Remappable Controls:** Joy-Con (handheld, grip, detached) and Pro Controller with the same default layout as every other Touhou Switch port (B shoot, A bomb, L/ZL focus, R/ZR skip, + pause); the in-game **Key Config** can rebind them.
@@ -144,6 +149,8 @@ The game logic is the architecture-independent C++ from upstream (`game/`), comp
 | `src/GraphicsDevice.*` | ANM textures → renderer surfaces |
 | `src/AudioDevice.*` / `src/BgmStream.*` | miniaudio mixer; BGM streamed from `thbgm.dat` with original loop points |
 | `src/FontDevice.*` / `src/FontBaker.*` | text glyph tables (upstream GDI tables, cached FreeType bake, or fresh bake) |
+| `src/LoadingScreen.*` | the original start-up screen while the game loads |
+| `src/LoadingOverlay.*`, `src/LoadingQuad.hpp` | the 少女祈祷中 animation (`ascii.anm` script 17) on its own VMs — from シエル's TH15 PSP port |
 | `src/Platform.*` | SD paths, files, log |
 | `platform/switch/icon.jpg` | 256×256 NRO icon (the original game cover) |
 | `scripts/build_switch.sh` | one-shot Switch build |
@@ -159,6 +166,7 @@ The game ticks once per vsync (60 Hz); after a real stall it catches up by at mo
 
 * **ZUN / Team Shanghai Alice** — original creator and developer of the Touhou Project series.
 * **[SteinsGateON](https://space.bilibili.com/34714121)** — the TH15 C++ reimplementation this port is built on, published by **[YomotsuHisami](https://github.com/YomotsuHisami/th15)**.
+* **[シエル](https://github.com/kan8223-dotcom/th10-psp-native)** — the original loading screen: they worked out how the PC game builds it (`sig.anm`'s picture, `ascii.anm` script 17) and shared the code from their native PSP port of TH15.
 * **Switchbrew & devkitPro Team** — the open-source `libnx` SDK and Switch toolchain.
 
-**Licensing:** the Switch port code (`src/main.cpp`, `src/Platform.*`, `src/SdlCompat.hpp`, `src/BgmStream.*`, `src/FontBaker.*`, `scripts/`, `tests/`, build files) is CC0 1.0 (see `LICENSE`). Everything else is upstream code by SteinsGateON under the **MIT** licence — see [`upstream/LICENSE-upstream-MIT.txt`](upstream/LICENSE-upstream-MIT.txt) and [`upstream/THIRD-PARTY-NOTICES.txt`](upstream/THIRD-PARTY-NOTICES.txt). Bundled third-party headers keep their own licences (`portable/sdl/third_party/`).
+**Licensing:** the Switch port code (`src/main.cpp`, `src/Platform.*`, `src/SdlCompat.hpp`, `src/BgmStream.*`, `src/FontBaker.*`, `scripts/`, `tests/`, build files) is CC0 1.0 (see `LICENSE`). `src/LoadingOverlay.*` and `src/LoadingQuad.hpp` are シエル's code from their PSP port, shared for this port. Everything else is upstream code by SteinsGateON under the **MIT** licence — see [`upstream/LICENSE-upstream-MIT.txt`](upstream/LICENSE-upstream-MIT.txt) and [`upstream/THIRD-PARTY-NOTICES.txt`](upstream/THIRD-PARTY-NOTICES.txt). Bundled third-party headers keep their own licences (`portable/sdl/third_party/`).

@@ -1,5 +1,14 @@
 <img width="256" height="256" alt="Touhou 15" src="https://raw.githubusercontent.com/saekaze/th15-switch/main/platform/switch/icon.jpg" />
 
+## Touhou 15 — 1.00b-r3
+
+* 🌙 **The original loading screen.** Start-up now shows the original game's "東方Project / 15th Project Shrine Maiden" screen with the 少女祈祷中 / NowLoading... animation and its drifting moons, instead of a grey bar — also during the long first launch. It is built from your own `th15.dat`; no images ship with the port.
+* 🙏 Thanks to **[シエル](https://github.com/kan8223-dotcom/th10-psp-native)**, who makes native PSP ports of Touhou: they worked out how the original game builds this screen and shared the code from their TH15 PSP port.
+
+Update: replace `touhou15.nro` in `sd:/switch/touhou/touhou15/`. Saves, replays and `fontcache/` are kept.
+
+---
+
 ## Touhou 15 — 1.00b-r2
 
 * 🧊 **No more freeze when a spell card ends.** At every chapter change TH15 saves a checkpoint file; the port compressed and wrote it to the SD card on the game thread, which froze the game for a moment right as the bullets disappeared. It now happens in the background on another CPU core, like in the original game.
@@ -19,6 +28,6 @@ A native Nintendo Switch port of Touhou 15: Legacy of Lunatic Kingdom v1.00b, bu
 * 👆 Touch controls in handheld mode.
 * 📁 Recommended folder: `sd:/switch/touhou/touhou15/`, next to the other ports.
 
-> ⏳ **The first launch is long — this is normal, only happens once.** The game's text needs Windows fonts that aren't in the game files, so the port builds the font itself from `msgothic.ttc` (about 7,500 characters in 8 sizes) and saves it as `fontcache/` (~55 MB) on the SD card. Let the loading bar finish. **After that it's fine** — later launches load the saved font and start normally.
+> ⏳ **The first launch is long — this is normal, only happens once.** The game's text needs Windows fonts that aren't in the game files, so the port builds the font itself from `msgothic.ttc` (about 7,500 characters in 8 sizes) and saves it as `fontcache/` (~55 MB) on the SD card. Let the loading screen run. **After that it's fine** — later launches load the saved font and start normally.
 
 Put `touhou15.nro`, `th15.dat`, `thbgm.dat` and `msgothic.ttc` in the folder and launch from hbmenu. If it runs out of memory from the album, start hbmenu by holding **R** while launching a game.

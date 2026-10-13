@@ -1,4 +1,4 @@
-// Switch port (from the TH15 PSP port): one sprite quad of the loading
+// Switch port (from シエル's TH15 PSP port): one sprite quad of the loading
 // animation (LoadingOverlay), drawn by LoadingScreen.
 #pragma once
 #include <cstdint>

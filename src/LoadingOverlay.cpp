@@ -1,4 +1,4 @@
-// Switch port (from the TH15 PSP port): see LoadingOverlay.hpp.
+// Switch port (from シエル's TH15 PSP port): see LoadingOverlay.hpp.
 #include "LoadingOverlay.hpp"
 #include "../game/AnmCoordinates.hpp"
 #include "../game/AnmTransforms.hpp"

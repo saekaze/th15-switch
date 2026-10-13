@@ -71,7 +71,7 @@ if(NINTENDO_SWITCH)
     nx_generate_nacp(OUTPUT "${CMAKE_BINARY_DIR}/touhou15-base.nacp"
         NAME "Touhou 15: Legacy of Lunatic Kingdom"
         AUTHOR "ZUN / Team Shanghai Alice"
-        VERSION "1.00b-r2")
+        VERSION "1.00b-r3")
     add_custom_command(OUTPUT "${CMAKE_BINARY_DIR}/touhou15.nacp"
         COMMAND "${Python3_EXECUTABLE}" "${CMAKE_SOURCE_DIR}/scripts/nacp_lang.py"
                 "${CMAKE_BINARY_DIR}/touhou15-base.nacp" "${CMAKE_BINARY_DIR}/touhou15.nacp"
