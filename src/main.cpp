@@ -7,6 +7,7 @@
 // buttons / the touch screen feeding the same keyboard map, gamepad sampling
 // and TouchController the web launcher forwards into.
 #include "ApplicationState.hpp"
+#include "LoadingScreen.hpp"
 #include "Platform.hpp"
 #include "SdlCompat.hpp"
 #include "../game/GameKeyboard.hpp"
@@ -119,16 +120,12 @@ bool sample_and_tick(){
     return ok;
 }
 
-// Switch port: a simple bar while start-up bakes the text glyphs (first
-// launch only; later launches reuse fontcache/) and reads th15.dat.
-void loading_bar(float fraction){
-    static double last=-1;const double now=host::seconds();if(fraction>0&&fraction<1&&now-last<1.0/30)return;last=now;
+// Switch port: black until sig.anm and ascii.anm are in, then the original
+// start-up screen (LoadingScreen) while the glyphs are baked (first launch
+// only; later launches reuse fontcache/) and the title's images load.
+void black(){
     auto& gpu=app->graphics.backend;gpu.state.target=GraphicsDevice::screen;gpu.state.depth=GraphicsDevice::depth;gpu.viewport({0,0,640,480,0,1});
-    const i32 x0=160,x1=480,y0=400,y1=412,fill=x0+2+i32(float(x1-x0-4)*std::clamp(fraction,0.f,1.f));
-    gpu.clear(1,0xff000000,1,0);const i32 frame[]{x0,y0,x1,y1};gpu.clear(1,0xff606060,1,0,frame,1);
-    const i32 inner[]{x0+2,y0+2,x1-2,y1-2};gpu.clear(1,0xff000000,1,0,inner,1);
-    if(fill>x0+2){const i32 bar[]{x0+2,y0+2,fill,y1-2};gpu.clear(1,0xffe0e0e0,1,0,bar,1);}
-    gpu.present(GraphicsDevice::screen);SDL_PumpEvents();
+    gpu.clear(1,0xff000000,1,0);gpu.present(GraphicsDevice::screen);SDL_PumpEvents();
 }
 
 // Switch port: '−' saves the current frame as a BMP into snapshot/ next to
@@ -164,11 +161,12 @@ void fatal(const std::string& message){
 bool start(){
     app=std::make_unique<ApplicationState>();
     if(!app->graphics.initialize()){app->failure=app->graphics.error;return false;}
-    loading_bar(0);double begin=host::seconds();
-    app->fonts.progress=[](float f){loading_bar(.9f*f);};const bool fonts_ok=app->fonts.initialize();app->fonts.progress=nullptr;
-    if(!fonts_ok){app->failure=app->fonts.error;return false;}
-    loading_bar(.9f);host::log("fonts ready in %.1fs",host::seconds()-begin);begin=host::seconds();
-    if(!app->initialize(true))return false;
+    black();const double begin=host::seconds();
+    auto loading=std::make_unique<LoadingScreen>(*app);auto* screen=loading.get(); // ~80 KB of animation slots: not on the stack
+    const auto pump=[screen]{screen->pump();};
+    app->loading_ready=[screen]{screen->start();};app->loading_step=app->graphics.prepared=pump;app->fonts.progress=[screen](float){screen->pump();};
+    const bool ok=app->initialize(true);screen->stop();app->loading_ready=app->loading_step=app->graphics.prepared=nullptr;app->fonts.progress=nullptr;loading.reset();
+    if(!ok)return false;
     host::log("game initialised in %.1fs",host::seconds()-begin);
     // First launch (no th15.cfg yet) leaves every action on button 0; use the
     // Switch layout instead. Key Config changes are kept afterwards.

@@ -62,7 +62,7 @@ sd:/switch/touhou/touhou15/
 
 ### ⏳ First launch is slow — only once
 
-**The very first start takes much longer than usual. This is normal — let the loading bar finish and don't close the game.**
+**The very first start takes much longer than usual. This is normal — let the loading screen (少女祈祷中) run and don't close the game.**
 
 Why: TH15 draws all of its text (menus, dialogue, spell card names, the manual) with Windows fonts, and the game files don't contain them. So on the first start the port builds the text font itself from `msgothic.ttc` (or the Switch's Japanese font): about 7,500 characters in 8 sizes and weights, and then saves the result to the SD card as `fontcache/` (about 55 MB). It uses three of the Switch's CPU cores to do it, but it still takes a while, and writing 55 MB to a slow SD card adds to that.
 

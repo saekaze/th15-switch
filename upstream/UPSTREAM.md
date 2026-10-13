@@ -14,7 +14,10 @@ MIT-licensed (`LICENSE-upstream-MIT.txt`) — at commit
 
 Switch port files (new): `src/main.cpp` (replaces `BrowserRuntime.cpp`),
 `src/Platform.*`, `src/SdlCompat.hpp`, `src/BgmStream.*`, `src/FontBaker.*`,
-`src/MiniaudioConfig.hpp`, `scripts/`, `tests/`, `CMakeLists.txt`.
+`src/MiniaudioConfig.hpp`, `src/BackgroundJob.hpp`, `src/LoadingScreen.*`,
+`scripts/`, `tests/`, `CMakeLists.txt`. `src/LoadingOverlay.*` and
+`src/LoadingQuad.hpp` come from the TH15 PSP port (shared with this port by
+its author; include paths adapted, UVs as `AnmRenderer::pack_quad` builds them).
 
 Changes to upstream files:
 
@@ -35,7 +38,10 @@ Changes to upstream files:
   folder; saves remove the old file before renaming (FAT); audio uses SDL2
   queued output and streams BGM from the original thbgm.dat instead of OGG
   files; text glyph tables are baked from msgothic.ttc with FreeType on first
-  launch instead of Windows-GDI files.
+  launch instead of Windows-GDI files; start-up loads text/sig/ascii.anm
+  before the fonts and the rest of the title, so `LoadingScreen` shows the
+  original start-up screen meanwhile (`loading_ready` / `loading_step`,
+  `GraphicsDevice::prepared`).
 
 Line endings were normalised to LF. Include paths `../../../portable/` became
 `../portable/`.

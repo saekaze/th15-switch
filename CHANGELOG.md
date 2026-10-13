@@ -1,5 +1,10 @@
 # Changelog — Touhou 15 Switch port
 
+## Unreleased (test build)
+
+* **Original loading screen:** start-up now shows the original game's screen, the "東方Project / 15th Project Shrine Maiden" picture from `sig.anm` with the 少女祈祷中 / NowLoading... animation from `ascii.anm` (script 17: the text pulsing, small moons drifting), instead of a grey bar. It runs during the first-launch font build too. Everything is drawn from the player's `th15.dat`; no images ship with the port. The animation code is from the TH15 PSP port, whose author shared it with this port.
+* To get there sooner, start-up loads `text.anm`, `sig.anm` and `ascii.anm` first, then the font, then the rest of the title.
+
 ## Touhou 15: Legacy of Lunatic Kingdom — Switch Port r2
 
 * **Freeze fix:** the game froze for a moment whenever a spell card or attack ended (every chapter change). TH15 saves a checkpoint file at each chapter start, and the port compressed it (LZSS) and wrote it to the SD card on the game thread. That now runs on a background thread on another CPU core, like the original's checkpoint worker.

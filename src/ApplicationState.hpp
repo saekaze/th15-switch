@@ -22,6 +22,8 @@ struct ApplicationState final:TitleScenePlatform,EndingScenePlatform,StageGamepl
  std::vector<std::unique_ptr<ScreenFade>> fades;std::vector<std::unique_ptr<ScreenMotionFrame>> motion;std::unique_ptr<Manual> pause_manual;FrameCallback manual_update;u32 manual_pressed=0,manual_repeated=0;StageCamera camera;std::array<u8,0xa4> live_description{};std::vector<u8> selected_replay,pending_png,pending_animation;std::unordered_map<std::string,std::vector<u8>> resource_cache;
  i32 pending_destination=-1,selected_stage=1,pending_page=-1,pending_bank=-1,frame_skip=0,current_destination=13;u32 transition_overlay=0,restart_handle=0,restart_effect_handle=0,frames=0;bool initialized=false,exiting=false,completed_recording=false;std::array<i32,16> projected{};std::string failure;
  std::vector<u8> checkpoint_bytes;
+ // Switch port: start-up loading screen (main.cpp). ready: sig.anm and ascii.anm are in; step: between the later loading steps.
+ std::function<void()> loading_ready,loading_step;
  Archive archive;std::vector<u8> archive_bytes;std::unordered_map<std::string,u32> archive_names;
  PlayerTouch touch;u32 controller_buttons=0;i32 numbered_chapter=0;
  // These original title counters live across destruction of the title owner.

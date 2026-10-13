@@ -159,11 +159,11 @@ bool bake_fonts(BakedFonts& result,std::string& error,const std::function<void(f
     struct Worker {Thread thread{};bool started=false;};Worker threads[workers];
     for(u32 n=0;n<workers;++n)threads[n].started=R_SUCCEEDED(threadCreate(&threads[n].thread,[](void* f){(*static_cast<decltype(work)*>(f))();},const_cast<void*>(static_cast<const void*>(&work)),nullptr,256*1024,0x2C,int(n)))&&R_SUCCEEDED(threadStart(&threads[n].thread));
     u32 running=0;for(auto& t:threads)running+=t.started;if(!running){work();}
-    while(finished<running){if(progress)progress(std::min(1.f,float(done)/float(total)));svcSleepThread(30000000);}
+    while(finished<running){if(progress)progress(std::min(1.f,float(done)/float(total)));svcSleepThread(8000000);} // ~120 Hz: the loading screen draws at 60
     for(auto& t:threads)if(t.started){threadWaitForExit(&t.thread);threadClose(&t.thread);}
 #else
     std::vector<std::thread> threads;for(u32 n=0;n<workers;++n)threads.emplace_back(work);
-    while(finished<workers){if(progress)progress(std::min(1.f,float(done)/float(total)));std::this_thread::sleep_for(std::chrono::milliseconds(30));}
+    while(finished<workers){if(progress)progress(std::min(1.f,float(done)/float(total)));std::this_thread::sleep_for(std::chrono::milliseconds(8));}
     for(auto& t:threads)t.join();
 #endif
     if(failed){error="Unable to rasterise the fonts";return false;}

@@ -6,6 +6,9 @@
 //                  thread and read back intact (the read waits for it)
 //   renderer     - the SDL2/GLES3 port of the shared renderer draws, reads
 //                  back and presents (needs a display, e.g. Xvfb)
+//   loading      - the start-up screen spreads sig.anm's picture over the
+//                  4:3 screen from its textures' used areas and draws the
+//                  sprites ascii.anm script 17 makes (stand-in files)
 #include "../game/Types.hpp"
 #include "../game/TextRaster.hpp"
 #include "../src/BgmStream.hpp"
@@ -14,7 +17,11 @@
 #include "../game/CheckpointFile.hpp"
 #include "../src/Platform.hpp"
 #include "../portable/sdl/Renderer.hpp"
+#include "../src/ApplicationState.hpp"
+#include "../src/LoadingScreen.hpp"
 #include <SDL.h>
+#include <array>
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -114,6 +121,58 @@ static bool test_renderer(){
     return true;
 }
 
+// One ANM v8 chunk: a w x h texture (pw x ph of it in `color`, the rest green),
+// optional sprites (x, y, width, height) and scripts.
+static void anm_chunk(std::vector<u8>& anm,u16 w,u16 h,u16 pw,u16 ph,u32 color,const std::vector<std::array<float,4>>& sprites,const std::vector<std::vector<u8>>& scripts,bool last){
+    const u32 ns=u32(sprites.size()),nc=u32(scripts.size()),table_end=64+ns*4+nc*8,name=table_end,first_sprite=name+8;u32 at=first_sprite+ns*20;std::vector<u32> script_at;
+    for(const auto& code:scripts){script_at.push_back(at);at+=u32(code.size());}
+    const u32 thtx=at,bytes=u32(w)*h*4,size=thtx+16+bytes,base=u32(anm.size());anm.resize(base+size,0);u8* c=anm.data()+base;
+    const auto put=[&](u32 at,u32 v,u32 n){for(u32 i=0;i<n;++i)c[at+i]=u8(v>>(8*i));};
+    put(0,8,4);put(4,ns,2);put(6,nc,2);put(10,w,2);put(12,h,2);put(14,1,2);put(16,name,4);put(28,thtx,4);c[32]=1;put(36,last?0:size,4);std::memcpy(c+name,"tex",3);
+    for(u32 i=0;i<ns;++i){const u32 o=first_sprite+i*20;put(64+i*4,o,4);put(o,i,4);std::memcpy(c+o+4,sprites[i].data(),16);}
+    for(u32 i=0;i<nc;++i){put(64+ns*4+i*8,i,4);put(64+ns*4+i*8+4,script_at[i],4);std::memcpy(c+script_at[i],scripts[i].data(),scripts[i].size());}
+    std::memcpy(c+thtx,"THTX",4);put(thtx+6,1,2);put(thtx+8,w,2);put(thtx+10,h,2);put(thtx+12,bytes,4);
+    for(u32 y=0;y<h;++y)for(u32 x=0;x<w;++x)put(thtx+16+(y*w+x)*4,y<ph&&x<pw?color:0xff00ff00,4);
+}
+// One ANM instruction: opcode, time, integer arguments.
+static void anm_op(std::vector<u8>& code,i16 opcode,i16 time,std::initializer_list<i32> args={}){
+    const u32 at=u32(code.size()),length=8+u32(args.size())*4;code.resize(at+length,0);
+    const auto put=[&](u32 o,u32 v,u32 n){for(u32 i=0;i<n;++i)code[at+o+i]=u8(v>>(8*i));};put(0,u16(opcode),2);put(2,length,2);put(4,u16(time),2);u32 o=8;for(i32 a:args){put(o,u32(a),4);o+=4;}
+}
+
+static void test_loading_screen(){
+    std::puts("loading screen (sig.anm picture, ascii.anm script 17)");
+    auto app=std::make_unique<sdl::ApplicationState>();
+    if(!app->graphics.initialize()){std::printf("  skipped: %s\n",app->graphics.error.c_str());return;}
+    auto& gpu=app->graphics.backend;
+    const auto frame=[&](sdl::LoadingScreen& screen,u32 frames){for(u32 i=0;i<frames;++i){SDL_Delay(17);screen.pump();}gpu.flush();gpu.read(sdl::GraphicsDevice::screen);};
+    const auto* image=app->graphics.pixels(sdl::GraphicsDevice::screen);
+    auto pixel=[&](u32 x,u32 y){const auto* q=image->pixels.data()+y*image->pitch+x*4;return u32(q[2])<<16|u32(q[1])<<8|q[0];};
+    // Stand-in sig.anm laid out like v1.00b's (1280x960 over a 1024x1024 and a
+    // 256x1024 texture, 960 rows used): 80x60 over 64x64 (red) and 16x64
+    // (blue). The unused rows are green and must not show.
+    std::vector<u8> sig;anm_chunk(sig,64,64,64,60,0xffff0000,{},{},false);anm_chunk(sig,16,64,16,60,0xff0000ff,{},{},true);
+    CHECK(app->animations.load(1,sig.data(),u32(sig.size())));CHECK(app->graphics.preload(*app->animations.resource(1)));
+    {sdl::LoadingScreen screen{*app};screen.start();frame(screen,2);screen.stop();}   // no ascii.anm yet: the picture alone
+    std::printf("  picture: left %06x right %06x bottom %06x/%06x\n",pixel(250,240),pixel(580,240),pixel(250,470),pixel(580,470));
+    CHECK(pixel(4,4)==0xff0000);CHECK(pixel(250,240)==0xff0000);CHECK(pixel(505,240)==0xff0000);CHECK(pixel(520,240)==0x0000ff);CHECK(pixel(635,240)==0x0000ff);
+    CHECK(pixel(250,470)==0xff0000);CHECK(pixel(580,470)==0x0000ff);CHECK(pixel(480,392)==0xff0000);
+    // Stand-in ascii.anm: script 17 makes script 16 (a white 32x32 sprite) as
+    // its child on frame 1, as the real one makes its texts and moons. Both
+    // use 1280x960 coordinates (op 313 mode 2: halved), as TH15's scripts do.
+    std::vector<std::vector<u8>> scripts(18);for(u32 i=0;i<16;++i)anm_op(scripts[i],-1,0);
+    anm_op(scripts[16],313,0,{2});anm_op(scripts[16],300,0,{0});anm_op(scripts[16],2,0);anm_op(scripts[16],-1,0);
+    anm_op(scripts[17],313,0,{2});anm_op(scripts[17],501,1,{16});anm_op(scripts[17],2,1);anm_op(scripts[17],-1,1);
+    std::vector<u8> ascii;anm_chunk(ascii,32,32,32,32,0xffffffff,{{0,0,32,32}},scripts,true);
+    CHECK(app->animations.load(2,ascii.data(),u32(ascii.size())));CHECK(app->graphics.preload(*app->animations.resource(2)));
+    sdl::LoadingScreen screen{*app};screen.start();frame(screen,0);CHECK(pixel(480,392)==0xff0000);   // frame 0: nothing made yet
+    frame(screen,3);u32 left=640,right=0,top=480,bottom=0;
+    for(u32 y=0;y<480;++y)for(u32 x=0;x<640;++x)if(pixel(x,y)==0xffffff){left=std::min(left,x);right=std::max(right,x);top=std::min(top,y);bottom=std::max(bottom,y);}
+    std::printf("  child sprite at x %u-%u, y %u-%u\n",left,right,top,bottom);
+    CHECK(left>=468&&left<=474&&right>=485&&right<=491&&top>=380&&top<=386&&bottom>=397&&bottom<=403);   // 16x16 around (960,784)/2
+    screen.stop();CHECK(glGetError()==GL_NO_ERROR);
+}
+
 static void test_checkpoint(const std::string& dir){
     std::puts("checkpoint (background save)");
     host::make_directory(dir+"/save");host::make_directory(dir+"/save/autosave");
@@ -136,6 +195,7 @@ int main(){
     host::make_directory(dir);
     test_bgm_stream(dir);test_font_baker(dir);test_checkpoint(dir);
     if(SDL_Init(SDL_INIT_VIDEO)==0){test_renderer();SDL_Quit();}else std::printf("renderer skipped: %s\n",SDL_GetError());
+    if(SDL_Init(SDL_INIT_VIDEO)==0){test_loading_screen();SDL_Quit();}
     std::printf(failures?"FAILED (%d)\n":"all host tests passed\n",failures);
     return failures?1:0;
 }

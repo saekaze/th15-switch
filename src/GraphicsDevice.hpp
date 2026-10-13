@@ -2,6 +2,7 @@
 #include "../game/ZunGraphics.hpp"
 #include "../game/TextureImage.hpp"
 #include "../portable/sdl/Renderer.hpp"
+#include <functional>
 #include <map>
 namespace th15::sdl {
 class GraphicsDevice final:public ZunGraphics {
@@ -16,6 +17,7 @@ public:
     touhou::sdl::Renderer backend{10,resolve,this};
     static constexpr u32 screen=1,depth=2;
     std::string error;u32 render_scale=1;bool ready=false;
+    std::function<void()> prepared; // Switch port: after each texture preload() makes (start-up loading screen)
     bool initialize();
     bool preload(AnmResource&,bool low_color=false);
     void unload(const AnmResource&);

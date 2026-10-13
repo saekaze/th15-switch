@@ -43,7 +43,7 @@ bool ApplicationState::initialize(bool device){
  // The original archive contains two identical se_cardget.wav entries.
  // Preserve the first entry while rejecting genuinely ambiguous resources.
  if(name!=archive.entries[first].name||!archive.read(first,left)||!archive.read(i,right)||left!=right)return fail("Ambiguous archive asset: "+base);}}}
- if((!graphics.ready&&!graphics.initialize())||!fonts.initialize()||!audio_device.initialize(*this,device))return fail(graphics.error.empty()?fonts.error.empty()?audio_device.error:fonts.error:graphics.error);
+ if((!graphics.ready&&!graphics.initialize())||!audio_device.initialize(*this,device))return fail(graphics.error.empty()?audio_device.error:graphics.error);
  // Restart overlays draw their patterned fifth panel when the screen has alpha.
  // Derive this from the actual SDL surface, as the original format check does.
  environment.render_target_has_alpha=graphics.pixels(GraphicsDevice::screen)->format==touhou::graphics::PixelFormat::Bgra8;
@@ -53,12 +53,18 @@ bool ApplicationState::initialize(bool device){
  volumes.music_volume=config.music_volume();volumes.sound_volume=config.sound_volume();volumes.controller_option=config.bytes[0x24];std::memcpy(controller.values.data(),config.bytes.data()+4,20);
  volume(volumes.music_volume,volumes.sound_volume,0);
  animations.resource_release=[this](const AnmResource& resource){graphics.unload(resource);};
- std::vector<u8> bytes;for(const auto& bank:std::array<std::pair<const char*,i32>,7>{{{"text.anm",0},{"sig.anm",1},{"ascii.anm",2},{"effect.anm",8},{"title.anm",16},{"title_v.anm",17},{"help.anm",19}}}){
-  if(!read(bank.first,bytes)||!animations.load(bank.second,bytes.data(),bytes.size()))return fail("Application ANM load: "+std::string(bank.first)+": "+animations.error);
-  animations.name_resource(bank.second,bank.first);shared.emplace(bank.first,bank.second);if(bank.second==2)environment.fallback_sprite_resource=animations.resource(2);
-  if(!graphics.preload(*animations.resource(bank.second)))return fail(graphics.error);
- }
- for(i32 style=0;style<23;style++)if(!fonts.preload(style))return fail(fonts.error);
+ std::vector<u8> bytes;const auto load_bank=[&](const char* name,i32 id){
+  if(!read(name,bytes)||!animations.load(id,bytes.data(),bytes.size()))return fail("Application ANM load: "+std::string(name)+": "+animations.error);
+  animations.name_resource(id,name);shared.emplace(name,id);if(id==2)environment.fallback_sprite_resource=animations.resource(2);
+  return graphics.preload(*animations.resource(id))||fail(graphics.error);
+ };
+ // Switch port: text, sig and ascii first, then the start-up screen (sig.anm's
+ // picture, ascii.anm's 少女祈祷中) shows while the fonts and the rest load.
+ for(const auto& bank:std::array<std::pair<const char*,i32>,3>{{{"text.anm",0},{"sig.anm",1},{"ascii.anm",2}}})if(!load_bank(bank.first,bank.second))return false;
+ if(loading_ready)loading_ready();
+ if(!fonts.initialize())return fail(fonts.error);
+ for(const auto& bank:std::array<std::pair<const char*,i32>,4>{{{"effect.anm",8},{"title.anm",16},{"title_v.anm",17},{"help.anm",19}}})if(!load_bank(bank.first,bank.second))return false;
+ for(i32 style=0;style<23;style++){if(!fonts.preload(style))return fail(fonts.error);if(loading_step)loading_step();}
  if(!read("musiccmt.txt",bytes)||!comments.open(bytes.data(),bytes.size()))return fail(comments.error);
  scene_effects=std::make_unique<AnmSceneEffects>(animations,environment.game_rng,visual,8);
  display=std::make_unique<SceneDisplay>(scheduler,animations,environment,graphics,renderer,views,captions,0,2);if(!display->initialize())return fail(display->error);
